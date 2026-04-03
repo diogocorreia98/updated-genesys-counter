@@ -1,6 +1,7 @@
 const OFFICIAL_GENESYS_URL = 'https://www.yugioh-card.com/en/genesys/';
 const POINT_CAP = 100;
-const GENESYS_CACHE_KEY = 'genesys_points_v1';
+const GENESYS_CACHE_KEY = 'genesys_points_v2';
+const LOCAL_POINTS_TABLE_URL = './points-table.txt';
 
 const deckInput = document.getElementById('decklist');
 const analyzeBtn = document.getElementById('analyzeBtn');
@@ -83,6 +84,41 @@ const parseDecklist = (raw) => {
   return { cards, warnings };
 };
 
+
+const extractPointsMapFromSnapshot = (tableText) => {
+  const normalizedText = tableText.replace(/\\n/g, '\n');
+  const map = new Map();
+
+  for (const rawLine of normalizedText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || /^card name\s+points$/i.test(line)) continue;
+
+    const tabMatch = line.match(/^(.*?)\t(\d+)$/);
+    const fallbackMatch = line.match(/^(.*?)(\d+)$/);
+    const match = tabMatch || fallbackMatch;
+    if (!match) continue;
+
+    const cardName = match[1].replace(/^"|"$/g, '').trim();
+    const points = Number(match[2]);
+    if (!cardName) continue;
+
+    const key = normalizeName(cardName);
+    map.set(key, Math.max(points, map.get(key) || 0));
+  }
+
+  return map;
+};
+
+const fetchLocalPointsMap = async () => {
+  const res = await fetch(LOCAL_POINTS_TABLE_URL, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Local point table is unavailable.');
+
+  const tableText = await res.text();
+  const map = extractPointsMapFromSnapshot(tableText);
+  if (!map.size) throw new Error('Local point table did not contain any entries.');
+
+  return map;
+};
 const extractPointsMap = (pageText) => {
   const marker = 'Card Name Points';
   const start = pageText.indexOf(marker);
@@ -122,12 +158,23 @@ const fetchOfficialPointsMap = async () => {
   if (cached) {
     try {
       const parsed = JSON.parse(cached);
-      if (parsed?.source === OFFICIAL_GENESYS_URL && Array.isArray(parsed.entries) && parsed.entries.length) {
+      if (Array.isArray(parsed?.entries) && parsed.entries.length) {
         return new Map(parsed.entries);
       }
     } catch {
       // ignore bad cache
     }
+  }
+
+  try {
+    const localMap = await fetchLocalPointsMap();
+    localStorage.setItem(
+      GENESYS_CACHE_KEY,
+      JSON.stringify({ source: LOCAL_POINTS_TABLE_URL, fetchedAt: new Date().toISOString(), entries: [...localMap.entries()] })
+    );
+    return localMap;
+  } catch {
+    // fall through to official list fetch
   }
 
   const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(OFFICIAL_GENESYS_URL)}`;
