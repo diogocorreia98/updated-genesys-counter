@@ -17,6 +17,26 @@ const normalizeName = (name) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const getDeckSectionFromHeader = (line) => {
+  const normalized = line
+    .toLowerCase()
+    .replace(/[:\-–—]+$/g, '')
+    .trim();
+
+  if (normalized === '#main' || normalized === 'main' || normalized === 'main deck') return 'main';
+  if (normalized === '#extra' || normalized === 'extra' || normalized === 'extra deck') return 'extra';
+  if (
+    normalized === '!side' ||
+    normalized === '#side' ||
+    normalized === 'side' ||
+    normalized === 'side deck'
+  ) {
+    return 'side';
+  }
+
+  return null;
+};
+
 const parseDecklist = (raw) => {
   const lines = raw.split(/\r?\n/);
   let section = 'main';
@@ -27,19 +47,12 @@ const parseDecklist = (raw) => {
     let line = originalLine.trim();
     if (!line) continue;
 
-    const lower = line.toLowerCase();
-    if (lower.startsWith('#main') || lower === 'main deck:') {
-      section = 'main';
+    const headerSection = getDeckSectionFromHeader(line);
+    if (headerSection) {
+      section = headerSection;
       continue;
     }
-    if (lower.startsWith('#extra') || lower === 'extra deck:') {
-      section = 'extra';
-      continue;
-    }
-    if (lower.startsWith('!side') || lower.startsWith('#side') || lower === 'side deck:') {
-      section = 'side';
-      continue;
-    }
+
     if (line.startsWith('#')) continue;
 
     line = line.replace(/^[-*]\s*/, '');
