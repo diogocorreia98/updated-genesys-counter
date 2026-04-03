@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GENESYS Decklist Checker</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Yu-Gi-Oh! GENESYS Decklist Checker</h1>
+      <p>
+        Paste a plaintext decklist from EDOPro. This tool totals GENESYS points and checks for
+        format legality using the official point list snapshot.
+      </p>
+
+      <label for="decklist">Decklist</label>
+      <textarea id="decklist" placeholder="#main\n3 Ash Blossom & Joyous Spring\n1 Pot of Greed\n#extra\n1 Baronne de Fleur\n!side\n1 Raigeki"></textarea>
+
+      <div class="actions">
+        <button id="analyzeBtn">Analyze Deck</button>
+      </div>
+
+      <section id="status" class="status hidden"></section>
+      <section id="summary" class="card hidden"></section>
+      <section id="issues" class="card hidden"></section>
+      <section id="pointsBreakdown" class="card hidden"></section>
+      <section id="notes" class="card">
+        <h2>Notes</h2>
+        <ul>
+          <li>Point cap default is 100.</li>
+          <li>Any card not in the official GENESYS point list is treated as 0 points.</li>
+          <li>Link and Pendulum monsters are illegal in GENESYS.</li>
+          <li>This checker uses the official list from <a href="https://www.yugioh-card.com/en/genesys/" target="_blank" rel="noreferrer">yugioh-card.com/en/genesys</a>.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
