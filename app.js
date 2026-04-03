@@ -2,6 +2,7 @@ const OFFICIAL_GENESYS_URL = 'https://www.yugioh-card.com/en/genesys/';
 const POINT_CAP = 100;
 const GENESYS_CACHE_KEY = 'genesys_points_v2';
 const LOCAL_POINTS_TABLE_URL = './points-table.txt';
+const OFFICIAL_PROXY_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(OFFICIAL_GENESYS_URL)}`;
 
 const deckInput = document.getElementById('decklist');
 const analyzeBtn = document.getElementById('analyzeBtn');
@@ -119,34 +120,32 @@ const fetchLocalPointsMap = async () => {
 
   return map;
 };
-const extractPointsMap = (pageText) => {
-  const marker = 'Card Name Points';
-  const start = pageText.indexOf(marker);
-  if (start === -1) throw new Error('Could not find point list on official page.');
-
-  let slice = pageText.slice(start + marker.length);
-  const stopMarkers = ['Official Tournament Store Program', '©'];
-  for (const stop of stopMarkers) {
-    const idx = slice.indexOf(stop);
-    if (idx !== -1) {
-      slice = slice.slice(0, idx);
-      break;
-    }
-  }
-
+const extractPointsMap = (html) => {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const tables = [...doc.querySelectorAll('table')];
   const map = new Map();
-  for (const rawLine of slice.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line) continue;
-    const match = line.match(/^(.*?)(\d+)$/);
-    if (!match) continue;
 
-    const cardName = match[1].replace(/^"|"$/g, '').trim();
-    const points = Number(match[2]);
-    if (!cardName) continue;
+  for (const table of tables) {
+    const headers = [...table.querySelectorAll('th')].map((th) =>
+      th.textContent?.toLowerCase().replace(/\s+/g, ' ').trim()
+    );
+    const hasGenesysHeaders = headers.includes('card name') && headers.includes('points');
+    if (!hasGenesysHeaders) continue;
 
-    const key = normalizeName(cardName);
-    map.set(key, Math.max(points, map.get(key) || 0));
+    const rows = [...table.querySelectorAll('tr')].slice(1);
+    for (const row of rows) {
+      const cells = [...row.querySelectorAll('td, th')];
+      if (cells.length < 2) continue;
+
+      const cardName = cells[0].textContent?.replace(/^"|"$/g, '').trim();
+      const points = Number(cells[1].textContent?.trim());
+      if (!cardName || Number.isNaN(points)) continue;
+
+      const key = normalizeName(cardName);
+      map.set(key, Math.max(points, map.get(key) || 0));
+    }
+
+    if (map.size) break;
   }
 
   if (!map.size) throw new Error('Official point list was empty after parsing.');
@@ -154,42 +153,38 @@ const extractPointsMap = (pageText) => {
 };
 
 const fetchOfficialPointsMap = async () => {
-  const cached = localStorage.getItem(GENESYS_CACHE_KEY);
-  if (cached) {
-    try {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed?.entries) && parsed.entries.length) {
-        return new Map(parsed.entries);
-      }
-    } catch {
-      // ignore bad cache
-    }
-  }
-
   try {
+    const res = await fetch(OFFICIAL_PROXY_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Failed to fetch official list (${res.status}).`);
+    const html = await res.text();
+    const map = extractPointsMap(html);
+
+    localStorage.setItem(
+      GENESYS_CACHE_KEY,
+      JSON.stringify({ source: OFFICIAL_GENESYS_URL, fetchedAt: new Date().toISOString(), entries: [...map.entries()] })
+    );
+
+    return map;
+  } catch {
+    const cached = localStorage.getItem(GENESYS_CACHE_KEY);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed?.entries) && parsed.entries.length) {
+          return new Map(parsed.entries);
+        }
+      } catch {
+        // ignore bad cache
+      }
+    }
+
     const localMap = await fetchLocalPointsMap();
     localStorage.setItem(
       GENESYS_CACHE_KEY,
       JSON.stringify({ source: LOCAL_POINTS_TABLE_URL, fetchedAt: new Date().toISOString(), entries: [...localMap.entries()] })
     );
     return localMap;
-  } catch {
-    // fall through to official list fetch
   }
-
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(OFFICIAL_GENESYS_URL)}`;
-  const res = await fetch(proxyUrl);
-  if (!res.ok) throw new Error(`Failed to fetch official list (${res.status}).`);
-  const html = await res.text();
-  const pageText = new DOMParser().parseFromString(html, 'text/html').body?.innerText ?? '';
-  const map = extractPointsMap(pageText);
-
-  localStorage.setItem(
-    GENESYS_CACHE_KEY,
-    JSON.stringify({ source: OFFICIAL_GENESYS_URL, fetchedAt: new Date().toISOString(), entries: [...map.entries()] })
-  );
-
-  return map;
 };
 
 const fetchCardType = async (name) => {
