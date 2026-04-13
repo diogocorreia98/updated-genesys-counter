@@ -1,35 +1,78 @@
-# Updated Genesys Counter
+# Yu-Gi-Oh! GENESYS Decklist Checker
 
-## Project Overview
+A small browser-based tool for checking whether a plaintext EDOPro decklist is legal in the Yu-Gi-Oh! GENESYS format.
 
-The Updated Genesys Counter is a dynamic application designed for interactive data visualization and user engagement. This project utilizes a mixture of programming languages to ensure a robust, scalable, and visually appealing user experience.
+It parses a pasted decklist, totals the deck's GENESYS points, flags common format violations, and shows a point-by-point breakdown of the cards that matter.
 
-### Languages Composition
-- **JavaScript (61.9%)**: The core of the application is built using JavaScript, enabling dynamic functionalities and interactive features that respond to user inputs seamlessly.
-- **Python (18.3%)**: Python is used for backend processing, leveraging its simplicity and rich ecosystem of libraries for data handling and analysis.
-- **HTML (12.6%)**: HTML structures the content on the web pages, creating a foundation that supports the dynamic features implemented in JavaScript.
-- **CSS (7.2%)**: CSS styles the application, enhancing the user interface and ensuring a responsive design that adapts to various screen sizes.
+## What the app checks
 
-## Features
-- **Interactive Data Visualization**: Engage with real-time data represented graphically.
-- **User-Friendly Interface**: Designed with UX principles to make navigation intuitive.
-- **Cross-Platform Compatibility**: Functions seamlessly across different web browsers and devices.
+- Total GENESYS points against the current default cap of `100`
+- More than `3` copies of the same card
+- Illegal card types for the format: Link and Pendulum cards
+- A per-card points breakdown for any point-costed cards in the list
 
-## Getting Started
-To set up a local copy of the Updated Genesys Counter for development and testing purposes, follow these steps:
+## How point data is loaded
 
-1. Clone the repository:
-   ```sh
-   git clone https://github.com/diogocorreia98/updated-genesys-counter.git
-   ```
-2. Navigate to the project directory:
-   ```sh
-   cd updated-genesys-counter
-   ```
-3. Install the necessary dependencies (if any) using npm or pip, depending on the components you are working with.
+The checker tries sources in this order:
 
-## Contributing
-Contributions are welcome! Please read the [Contribution Guidelines](CONTRIBUTING.md) for more information.
+1. The official GENESYS page at `https://www.yugioh-card.com/en/genesys/`
+2. Cached browser data from a previous successful fetch
+3. The local snapshot in `points-table.txt`
 
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This makes the tool usable even when the official page or proxy fetch is temporarily unavailable.
+
+## Project structure
+
+- `index.html` - the app UI
+- `app.js` - deck parsing, point lookup, legality checks, and rendering
+- `styles.css` - page styling
+- `points-table.txt` - local fallback snapshot of the GENESYS point list
+- `update_genesys_points.py` - helper script to refresh the local point snapshot from the official site
+
+## Run locally
+
+Because the app fetches `points-table.txt`, serve the folder over HTTP instead of opening `index.html` directly with `file://`.
+
+```sh
+python3 -m http.server 8000
+```
+
+Then open:
+
+```text
+http://localhost:8000
+```
+
+## Using the checker
+
+1. Open your deck in EDOPro.
+2. Remove Link and Pendulum cards if you want a valid GENESYS candidate list.
+3. Use `YDKE` -> `Export Plaintext`.
+4. Paste the decklist into the app.
+5. Click `Analyze Deck`.
+
+## Refresh the local point snapshot
+
+Install the Python dependencies:
+
+```sh
+pip install requests beautifulsoup4
+```
+
+Run the updater:
+
+```sh
+python3 update_genesys_points.py
+```
+
+The script refreshes:
+
+- `points-table.txt`
+- `genesys_cards.csv`
+
+## Notes and limitations
+
+- The point cap is currently hardcoded to `100` in `app.js`.
+- Cards not found in the GENESYS point list are treated as `0` points.
+- Card type checks rely on the YGOPRODeck API being reachable.
+- Official list fetching is done client-side through an external proxy before falling back to cache or the bundled snapshot.
